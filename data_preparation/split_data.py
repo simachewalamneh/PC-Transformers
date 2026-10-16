@@ -1,3 +1,40 @@
+"""
+Rebuilds train/validation/test splits for tiny_shakespeare using shuffled,
+fixed-size chunks instead of one contiguous 90/5/5 cut.
+
+Problem this fixes
+-------------------
+The checked-in train.csv / validation.csv / test.csv are a single contiguous
+90/5/5 cut of the raw corpus, taken in original play order. train.csv ends
+mid-sentence exactly where validation.csv begins, and validation.csv ends
+mid-sentence exactly where test.csv begins. As a result, each split is drawn
+from largely different plays / scenes / speakers, so validation and test are
+not representative of train (or of each other).
+
+Fix
+---
+1. Reconstruct the single original corpus by re-joining the three existing
+   CSVs in order (they are contiguous, so concatenating them recovers the
+   original text).
+2. Chunk that text into fixed-size pieces (~512 tokens each, see note below).
+3. Shuffle chunk order with a fixed seed (42) for reproducibility.
+4. Assign chunks to train/valid/test at an 80/10/10 ratio.
+5. Concatenate each split's chunks (chunks themselves stay internally
+   contiguous -- only their assignment across splits is shuffled) and write
+   them back out in the same CSV shape prepare_tokens.py already expects.
+
+Note on "512-token" chunking
+-----------------------------
+Chunk boundaries are measured in characters, calibrated to ~512 BPE tokens
+using a throwaway tokenizer trained on the *full* reconstructed corpus. That
+throwaway tokenizer is used ONLY to measure a chars-per-token ratio for
+chunk sizing -- it is discarded immediately after. It is NOT the production
+tokenizer used by the model: prepare_tokens.py still trains the real
+tokenizer on the resulting train.csv only, so there is no vocabulary leakage
+into the actual training/eval pipeline from this step.
+
+Usage: python data_preparation/split_data.py
+"""
 import csv
 import random
 import sys
